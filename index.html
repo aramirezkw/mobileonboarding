@@ -623,7 +623,7 @@ const Q1 = 'Who should I call today?';
 const TOUR_PROMPT = 'What can you do?';   // permanent suggestion that replays the value intro
 const DATA = {
   agent: { firstName: 'Olha', initials: 'OS', team: 'Royals Realtors', role: 'Rainmaker' },
-  suggestions: [Q1, 'Summarize my pipeline', 'Draft a follow-up text', TOUR_PROMPT],
+  suggestions: [TOUR_PROMPT, Q1, 'Summarize my pipeline', 'Draft a follow-up text'],
   responses: {
     'who should i call today?': "Based on your pipeline, I'd start with Sarah Johnson. She toured 412 Maple Ave yesterday and hasn't replied. Mike Chen's pre-approval expires Friday, so time is tight. Tom and Lisa Park signaled they're ready to move on 88 Oak St, so a quick check-in could push them to an offer.",
     'summarize my pipeline': "You have 66 open opportunities: 34 in Cultivate, 5 appointments set, 23 active, and 4 under contract worth about $68,900 in projected GCI.\n\nTwo deals need attention this week. The Ortiz inspection is Thursday, and Mike Chen's pre-approval lapses Friday.",
