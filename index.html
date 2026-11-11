@@ -29,7 +29,8 @@
     ?ai=error                   Command AI answers with the error state
     ?accent=solid               swaps the AI gradient (XDS extension) for solid XDS action teal
     ?start=ai|ai-loading|ai-response|contacts|tasks|opps|alerts|menu   open on a given screen
-    ?onboarding=modal|coachmark Command AI onboarding, shown 1.5s after Home loads: 5-step modal (default) or coachmark step
+    ?onboarding=value|coachmark|modal Command AI onboarding, shown 1.5s after Home loads: coachmark that opens the
+                                value props as Command AI messages (default), coachmark with a short intro, or 5-step modal
     ?tour=off                   hides Command AI onboarding (either version)
 -->
 <style>
@@ -353,7 +354,15 @@ button.row:active { background: var(--action-hover-fill); }
 .msg-error .btn { align-self: flex-start; }
 .msg-stopped { color: var(--label-tertiary); }
 .msg-ai--intro + .msg-ai--intro { margin-top: calc(var(--space-2) * -1); }
-.msg-ai--intro { animation: rise-in 220ms cubic-bezier(0,0,.2,1); }
+.msg-ai--intro.is-new { animation: rise-in 220ms cubic-bezier(0,0,.2,1); }
+.msg-ai--intro:not(.is-new) * { animation: none; }
+/* Value intro (?onboarding=value): each value prop as a rich Command AI message */
+.msg-ai--rich, .msg-ai--rich + .msg-ai--intro { margin-top: 0 !important; }
+.msg-ai--rich { gap: var(--space-2); padding-top: var(--space-4); border-top: 1px solid var(--divider); }
+.msg-ai--rich .onb__eyebrow { margin-bottom: calc(var(--space-1) * -1); }
+.msg-visual { padding: var(--space-4) var(--space-3); border-radius: var(--radius-lg); background: var(--container-tinted); display: flex; justify-content: center; }
+.msg-visual .onb-card { width: 100%; }
+.msg-ai--rich .onb-try { margin-top: 0; }
 /* Typing indicator (AI intro) */
 .typing { align-self: flex-start; display: inline-flex; gap: 4px; padding: var(--space-3) var(--space-4); border-radius: var(--radius-xl); background: var(--container-tinted); }
 .typing i { width: 6px; height: 6px; border-radius: var(--radius-pill); background: var(--label-tertiary); animation: typing-dot 1s infinite ease-in-out; }
@@ -371,6 +380,7 @@ button.row:active { background: var(--action-hover-fill); }
 .tour__actions { display: flex; justify-content: flex-end; align-items: center; gap: var(--space-2); padding-right: var(--space-1); }
 .tour .btn--borderless { color: var(--label-inverse); }
 .tour .btn--borderless:active { background: rgba(255,255,255,0.16); }
+.tour__new { display: inline-flex; align-items: center; gap: 4px; margin-bottom: var(--space-1); padding: 2px 8px; border-radius: var(--radius-pill); background: rgba(255,255,255,0.18); }
 .btn--inverse { background: var(--container-background); color: var(--kw-purple); }
 
 /* Onboarding modal (?onboarding=modal) — XDS EXTENSION: spotlight modal built from XDS tokens, Button, IconButton, Avatar, Chip */
@@ -542,7 +552,7 @@ button.row:active { background: var(--action-hover-fill); }
   </div>
   <span class="home-indicator" aria-hidden="true"></span>
 </div>
-<p class="device__caption xds-text-sm">Command Mobile Prototype · XDS-A · Onboarding: <a id="onb-switch-coach" href="?onboarding=coachmark">Coachmark</a> | <a id="onb-switch-modal" href="?onboarding=modal">Modal</a></p>
+<p class="device__caption xds-text-sm">Command Mobile Prototype · XDS-A · Onboarding: <a id="onb-switch-value" href="?onboarding=value">Value Intro</a> | <a id="onb-switch-coach" href="?onboarding=coachmark">Coachmark</a> | <a id="onb-switch-modal" href="?onboarding=modal">Modal</a></p>
 
 <script>
 /* ===================================================================
@@ -610,9 +620,10 @@ function sparkle(size = 24, solid = false) {
    DATA — mock agent data (shapes mirror what the Command API returns)
    =================================================================== */
 const Q1 = 'Who should I call today?';
+const TOUR_PROMPT = 'What can you do?';   // permanent suggestion that replays the value intro
 const DATA = {
   agent: { firstName: 'Olha', initials: 'OS', team: 'Royals Realtors', role: 'Rainmaker' },
-  suggestions: [Q1, 'Summarize my pipeline', 'Draft a follow-up text'],
+  suggestions: [Q1, 'Summarize my pipeline', 'Draft a follow-up text', TOUR_PROMPT],
   responses: {
     'who should i call today?': "Based on your pipeline, I'd start with Sarah Johnson. She toured 412 Maple Ave yesterday and hasn't replied. Mike Chen's pre-approval expires Friday, so time is tight. Tom and Lisa Park signaled they're ready to move on 88 Oak St, so a quick check-in could push them to an offer.",
     'summarize my pipeline': "You have 66 open opportunities: 34 in Cultivate, 5 appointments set, 23 active, and 4 under contract worth about $68,900 in projected GCI.\n\nTwo deals need attention this week. The Ortiz inspection is Thursday, and Mike Chen's pre-approval lapses Friday.",
@@ -691,7 +702,7 @@ const contactById = Object.fromEntries(DATA.contacts.map((c) => [c.id, c]));
    STATE
    =================================================================== */
 const params = new URLSearchParams(location.search);
-const QA = { onboarding: params.get('onboarding') === 'coachmark' ? 'coachmark' : 'modal', list: params.get('list') || 'loaded', aiError: params.get('ai') === 'error', start: params.get('start') || 'home' };
+const QA = { onboarding: ['modal', 'coachmark'].includes(params.get('onboarding')) ? params.get('onboarding') : 'value', list: params.get('list') || 'loaded', aiError: params.get('ai') === 'error', start: params.get('start') || 'home' };
 if (params.get('accent') === 'solid') document.documentElement.classList.add('accent-solid');
 
 const state = {
@@ -728,27 +739,49 @@ function setTab(tab, extra = {}) {
   Object.assign(state, { tab, stack: [], sheet: null }, extra);
 }
 function openSheet(name) { clearTimeout(timers.toast); state.toast = null; state.sheet = name; once.sheet = true; }
-/* Command AI introduces itself (product tour → Learn More): typing dots, then one message at a time */
-function runIntro() {
-  const lines = [
+/* Command AI introduces itself (product tour → Learn More, or the agent asks TOUR_PROMPT): typing dots, then one message at a time */
+function introLines(asked) {
+  // Value intro is paced by the agent: sections with `replies` wait for a tap.
+  // When the agent asked, Command AI answers the question instead of introducing itself.
+  if (asked || QA.onboarding === 'value') return [
+    { text: `${asked ? 'Quite a bit.' : `Hi ${DATA.agent.firstName}, I’m Command AI.`} ${ONB_STEPS[0].chat}`, replies: ['Show me', INTRO_SKIP] },
+    ...[1, 2, 3].map((step) => ({ step, text: ONB_STEPS[step].chat, replies: ['What else?', INTRO_SKIP] })),
+    { step: 4, text: ONB_STEPS[4].chat },
+    { text: 'Want to give it a try? Pick a question below, or ask me anything.', suggest: ONB_STEPS.filter((s) => s.prompt).map((s) => s.prompt) }
+  ];
+  return [
     `Hi ${DATA.agent.firstName}, I’m Command AI. I answer your questions and act on your behalf in Command.`,
     'Ask about your contacts, your market or your numbers. Then have me add a contact, set a task or add someone to a SmartPlan.',
     'I only use what’s in your Command account, and nothing goes out without your OK.',
     'Want to give it a try? Pick a suggestion below or ask me anything.'
-  ];
-  let k = 0;
+  ].map((text) => ({ text }));
+}
+const INTRO_SKIP = 'Skip for now';
+const intro = { lines: [], k: 0 };
+function runIntro(asked = false) {
+  Object.assign(intro, { lines: introLines(asked), k: 0 });
+  playIntro();
+}
+// Types the next intro message, then keeps going until one waits for a reply or the intro ends.
+// Each message lands together with the next typing indicator, so earlier messages don't re-animate between renders.
+function playIntro() {
   const next = () => {
     if (!state.ai.open) return;
-    state.ai.phase = 'typing'; once.aiBottom = true; render();
-    timers.intro = setTimeout(() => {
-      state.ai.phase = 'idle';
-      state.ai.messages.push({ role: 'ai', text: lines[k], intro: true, introEnd: k === lines.length - 1 });
-      k++; once.aiBottom = true; render();
-      if (k < lines.length) timers.intro = setTimeout(next, 350);
-    }, k === 0 ? 900 : 700 + lines[k].length * 6);
+    const line = intro.lines[intro.k++];
+    const end = intro.k === intro.lines.length;
+    state.ai.messages.push({ role: 'ai', intro: true, ...line, introEnd: end });
+    state.ai.phase = end || line.replies ? 'idle' : 'typing';
+    once.introNew = true; once.aiBottom = true; render();
+    if (state.ai.phase === 'typing') timers.intro = setTimeout(next, 900 + line.text.length * (line.step ? 14 : 8));
   };
   clearTimeout(timers.intro);
-  next();
+  state.ai.phase = 'typing'; once.aiBottom = true; render();
+  timers.intro = setTimeout(next, 900);
+}
+function introReply(label) {
+  state.ai.messages.push({ role: 'user', text: label });
+  if (label === INTRO_SKIP) intro.k = intro.lines.length - 1;
+  playIntro();
 }
 
 function askAi(text) {
@@ -756,8 +789,14 @@ function askAi(text) {
   if (!q || state.ai.phase === 'loading') return;
   if (!state.ai.open) once.ai = true;
   clearTimeout(timers.ai); clearTimeout(timers.intro);
-  Object.assign(state.ai, { open: true, phase: 'loading', draft: '' });
   state.sheet = null;
+  if (q.toLowerCase() === TOUR_PROMPT.toLowerCase()) {
+    Object.assign(state.ai, { open: true, draft: '' });
+    state.ai.messages.push({ role: 'user', text: q });
+    runIntro(true);
+    return;
+  }
+  Object.assign(state.ai, { open: true, phase: 'loading', draft: '' });
   state.ai.messages.push({ role: 'user', text: q });
   once.aiBottom = true;
   timers.ai = setTimeout(() => {
@@ -799,6 +838,7 @@ const actions = {
   openAi: () => { state.tour = false; state.ai.open = true; state.sheet = null; once.ai = true; once.focus = 'ai-input'; },
   closeAi: () => { clearTimeout(timers.ai); clearTimeout(timers.intro); state.ai = { open: false, phase: 'idle', messages: [], draft: '', focused: false, feedback: {}, copied: null }; },
   ask: (text) => askAi(text),
+  introReply: (label) => introReply(label),
   // Onboarding modal
   onbNext: () => onbGo(state.onboard.step + 1),
   onbBack: () => onbGo(state.onboard.step - 1),
@@ -844,18 +884,23 @@ function header(content, { tight = false, extra = '' } = {}) {
 /* ---------- Onboarding modal (?onboarding=modal): Big idea → Focus → Prepared → Busywork → In charge ---------- */
 const ONB_STEPS = [
   { name: 'The big idea', title: 'Answers your questions. Acts on your\u00a0behalf.',
-    body: 'Command AI answers questions about your contacts, your market, and your business. Then it takes care of the work that comes after, like adding contacts and setting tasks.' },
+    body: 'Command AI answers questions about your contacts, your market, and your business. Then it takes care of the work that comes after, like adding contacts and setting tasks.',
+    chat: 'I answer questions about your contacts, your market, and your business. Then I take care of the work that comes after, like adding contacts and setting tasks.' },
   { name: 'Know where to focus', title: 'Start your day with who to call',
     body: 'Get a short list of contacts worth calling today, along with why each one made the list. Spend your time on conversations, not on sorting your database.',
+    chat: 'Ask me and I’ll give you a short list of contacts worth calling today, along with why each one made the list.',
     prompt: 'Who should I call today?' },
   { name: 'Walk in prepared', title: 'Know your market before the conversation',
     body: 'Pull up prices, inventory, and recent activity for any area in seconds, so you’re ready when a client asks how things are moving.',
+    chat: 'I pull up prices, inventory, and recent activity for any area in seconds, so you’re ready when a client asks how things are moving.',
     prompt: 'How’s the market in Santa Monica?' },
   { name: 'Hand off the busywork', title: 'Ask, and it’s done',
     body: 'Create a contact, add them to a SmartPlan, set a follow-up task, or find your listings without clicking through screens. Tell Command AI what you need in plain words.',
+    chat: 'Tell me what you need in plain words. I’ll create the contact, add them to a SmartPlan, or set the follow-up task, without you clicking through screens.',
     prompt: 'Add Devon Kirk to my new buyer SmartPlan' },
   { name: 'You stay in charge', title: 'You approve every change',
-    body: 'Command AI shows you what it’s about to do before anything in Command changes. And if you’re ever stuck, ask how anything works.' }
+    body: 'Command AI shows you what it’s about to do before anything in Command changes. And if you’re ever stuck, ask how anything works.',
+    chat: 'I show you what I’m about to do before anything in Command changes. And if you’re ever stuck, ask me how anything works.' }
 ];
 
 function onbGo(step) {
@@ -926,7 +971,9 @@ function viewOnboard() {
 function viewTour() {
   return `<div class="tour-anchor"><div class="tour" role="dialog" aria-labelledby="tour-body">
     <div class="tour__head">
-      <p id="tour-body" class="xds-text-lg tour__body">Meet Command AI. It answers your questions and acts on your behalf, like adding contacts and setting tasks. Start by tapping the input.</p>
+      ${QA.onboarding === 'value'
+        ? `<div class="tour__body"><span class="xds-text-sm-bold tour__new">${sparkWhite(12)}New</span><p id="tour-body" class="xds-text-lg">Meet Command AI. It answers your questions and acts on your behalf, like adding contacts and setting tasks.</p></div>`
+        : `<p id="tour-body" class="xds-text-lg tour__body">Meet Command AI. It answers your questions and acts on your behalf, like adding contacts and setting tasks. Start by tapping the input.</p>`}
       <button type="button" class="icon-btn" ${btnAttr('closeTour')} aria-label="Close tour">${icon('close', 18)}</button>
     </div>
     <div class="tour__actions">
@@ -936,9 +983,9 @@ function viewTour() {
   </div></div>`;
 }
 
-function suggestionRow() {
-  return `<div class="hscroll" role="list" aria-label="Suggested prompts">${DATA.suggestions.map((q) =>
-    `<button type="button" class="suggestion" role="listitem" ${btnAttr('ask', q)}><span>${esc(q)}</span></button>`).join('')}</div>`;
+function suggestionRow(list = DATA.suggestions, action = 'ask') {
+  return `<div class="hscroll" role="list" aria-label="${action === 'ask' ? 'Suggested prompts' : 'Quick replies'}">${list.map((q) =>
+    `<button type="button" class="suggestion" role="listitem" ${btnAttr(action, q)}><span>${esc(q)}</span></button>`).join('')}</div>`;
 }
 
 /* ListState: loading skeleton / empty / error, shared by every list screen */
@@ -1142,6 +1189,7 @@ function viewAi() {
   const typing = ai.phase === 'typing';
   const empty = !ai.messages.length && ai.phase === 'idle';
   const last = ai.messages[ai.messages.length - 1];
+  const replies = !typing && last && last.replies;
   const showSuggestions = empty || (!typing && last && last.introEnd);
   const hasDraft = ai.draft.trim().length > 0;
   const msgs = ai.messages.map((m, i) => {
@@ -1150,7 +1198,18 @@ function viewAi() {
     if (m.role === 'error') return `<div class="msg-error" role="alert"><span class="xds-text-md-bold msg-error__title">${icon('alert', 18)}Command AI couldn’t answer that</span>
       <span class="xds-text-md msg-error__body">Check your connection, then try again. Your question is saved.</span>
       <button type="button" class="btn btn--danger-bordered" ${btnAttr('regen', i)}>Try Again</button></div>`;
-    if (m.intro) return `<div class="msg-ai msg-ai--intro"><p class="xds-text-lg msg-ai__text">${esc(m.text)}</p></div>`;
+    if (m.intro) {
+      const cls = `msg-ai msg-ai--intro${m.step ? ' msg-ai--rich' : ''}${once.introNew && i === ai.messages.length - 1 ? ' is-new' : ''}`;
+      if (!m.step) return `<div class="${cls}"><p class="xds-text-lg msg-ai__text">${esc(m.text)}</p></div>`;
+      const s = ONB_STEPS[m.step];
+      return `<div class="${cls}">
+        <p class="xds-subtitle-md onb__eyebrow">${s.name}</p>
+        <p class="xds-title-sm-bold">${s.title}</p>
+        <p class="xds-text-lg msg-ai__text">${esc(m.text)}</p>
+        <div class="msg-visual">${onbStage(m.step)}</div>
+        ${s.prompt ? `<div class="onb-try"><span class="xds-text-sm onb-try__label">Try asking</span><button type="button" class="onb-ask ai-ring xds-text-md" ${btnAttr('ask', s.prompt)}>${sparkle(18)}<span class="onb-ask__text">${esc(s.prompt)}</span>${icon('send', 16)}</button></div>` : ''}
+      </div>`;
+    }
     const fb = ai.feedback[i];
     return `<div class="msg-ai"><p class="xds-text-lg msg-ai__text">${esc(m.text)}</p>
       <div class="msg-actions" role="group" aria-label="Response actions">
@@ -1173,7 +1232,7 @@ function viewAi() {
       ${loading ? `<div class="thinking" aria-busy="true" aria-label="Command AI is thinking"><span class="xds-text-md thinking__label">${icon('clock', 18)}Thinking…</span><span class="skeleton skeleton--line"></span><span class="thinking__pair"><span class="skeleton skeleton--line"></span><span class="skeleton skeleton--line"></span></span></div>` : ''}
     </div>
     <div class="composer-wrap">
-      ${showSuggestions ? suggestionRow() : ''}
+      ${replies ? suggestionRow(replies, 'introReply') : showSuggestions ? suggestionRow(last && last.suggest) : ''}
       <div class="composer ai-ring${ai.focused ? ' is-focused' : ''}">
         <label for="ai-input" class="sr-only">Ask Command AI</label>
         ${empty
@@ -1370,7 +1429,7 @@ if (QA.start === 'home' && params.get('tour') !== 'off') timers.onbIntro = setTi
   else state.tour = true;
   render();
 }, ONB_DELAY);
-document.getElementById(QA.onboarding === 'modal' ? 'onb-switch-modal' : 'onb-switch-coach').setAttribute('aria-current', 'page');
+document.getElementById({ modal: 'onb-switch-modal', coachmark: 'onb-switch-coach', value: 'onb-switch-value' }[QA.onboarding]).setAttribute('aria-current', 'page');
 render();
 </script>
 </body>
