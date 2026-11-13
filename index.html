@@ -362,7 +362,6 @@ button.row:active { background: var(--action-hover-fill); }
 .msg-ai--rich .onb__eyebrow { margin-bottom: calc(var(--space-1) * -1); }
 .msg-visual { padding: var(--space-4) var(--space-3); border-radius: var(--radius-lg); background: var(--container-tinted); display: flex; justify-content: center; }
 .msg-visual .onb-card { width: 100%; }
-.msg-ai--rich .onb-try { margin-top: 0; }
 /* Typing indicator (AI intro) */
 .typing { align-self: flex-start; display: inline-flex; gap: 4px; padding: var(--space-3) var(--space-4); border-radius: var(--radius-xl); background: var(--container-tinted); }
 .typing i { width: 6px; height: 6px; border-radius: var(--radius-pill); background: var(--label-tertiary); animation: typing-dot 1s infinite ease-in-out; }
@@ -438,7 +437,6 @@ button.row:active { background: var(--action-hover-fill); }
 .onb-row__score { color: var(--action); }
 .onb-row__time { width: 52px; flex: 0 0 auto; color: var(--label-tertiary); }
 .avatar--sm { width: 28px; height: 28px; font-size: 10px; line-height: 12px; font-weight: 700; }
-.onb-ask { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-3); border-radius: var(--radius-pill); }
 .onb-answer { margin-top: var(--space-2); padding: var(--space-2) var(--space-3); border-radius: var(--radius-lg); background: var(--container-background); box-shadow: var(--shadow04); color: var(--label-secondary); }
 .onb-bubble { max-width: 260px; margin-left: auto; padding: var(--space-2) var(--space-3); border-radius: var(--radius-xl) var(--radius-xl) var(--radius-sm) var(--radius-xl); background: var(--action); color: var(--label-inverse); }
 .onb-chips { display: flex; justify-content: flex-end; gap: 6px; margin-top: var(--space-2); }
@@ -460,12 +458,6 @@ button.row:active { background: var(--action-hover-fill); }
 @keyframes onb-pin { from { transform: scale(0); } }
 .onb-change { background: var(--action-hover-fill); color: var(--action); }
 .onb-chips--card { margin: 0; padding: 6px var(--space-3); border-top: 1px solid var(--divider); }
-.onb-try { display: flex; flex-direction: column; gap: 6px; margin-top: var(--space-1); }
-.onb-try__label { color: var(--label-tertiary); }
-.onb-try .onb-ask { width: 100%; min-height: 40px; border: 0; text-align: left; color: var(--label-primary); cursor: pointer; }
-.onb-try .onb-ask:active { transform: scale(.98); }
-.onb-ask__text { flex: 1 1 auto; min-width: 0; }
-.onb-try .onb-ask > svg:last-child { flex: 0 0 auto; color: var(--action); }
 @media (prefers-reduced-motion: reduce) { .float, .onb-done, .caret { animation: none; } }
 .btn--inverse:active { background: var(--kw-purple-tint); }
 .thinking { display: flex; flex-direction: column; gap: var(--space-2); }
@@ -844,7 +836,6 @@ const actions = {
   onbBack: () => onbGo(state.onboard.step - 1),
   onbClose: () => closeOnboard(),
   onbFinish: () => { closeOnboard(); actions.openAi(); },
-  onbTry: (q) => { closeOnboard(); state.tour = false; askAi(q); },
   // Product tour
   closeTour: () => { state.tour = false; },
   learnMore: () => { state.tour = false; state.ai.open = true; state.sheet = null; once.ai = true; runIntro(); },
@@ -937,8 +928,7 @@ function onbBody(step) {
   const s = ONB_STEPS[step];
   return `<p class="xds-subtitle-md onb__eyebrow">${s.name}</p>
     <h2 id="onb-title" class="${step === 0 ? 'xds-title-lg-bold' : 'xds-title-md-bold'}">${s.title}</h2>
-    <p class="xds-text-md onb__lede">${s.body}</p>` +
-    (s.prompt ? `<div class="onb-try"><span class="xds-text-sm onb-try__label">Try asking</span><button type="button" class="onb-ask ai-ring xds-text-md" ${btnAttr('onbTry', s.prompt)}>${sparkle(18)}<span class="onb-ask__text">${esc(s.prompt)}</span>${icon('send', 16)}</button></div>` : '');
+    <p class="xds-text-md onb__lede">${s.body}</p>`;
 }
 
 function viewOnboard() {
@@ -1207,7 +1197,6 @@ function viewAi() {
         <p class="xds-title-sm-bold">${s.title}</p>
         <p class="xds-text-lg msg-ai__text">${esc(m.text)}</p>
         <div class="msg-visual">${onbStage(m.step)}</div>
-        ${s.prompt ? `<div class="onb-try"><span class="xds-text-sm onb-try__label">Try asking</span><button type="button" class="onb-ask ai-ring xds-text-md" ${btnAttr('ask', s.prompt)}>${sparkle(18)}<span class="onb-ask__text">${esc(s.prompt)}</span>${icon('send', 16)}</button></div>` : ''}
       </div>`;
     }
     const fb = ai.feedback[i];
